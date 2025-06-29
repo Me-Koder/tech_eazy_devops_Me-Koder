@@ -21,24 +21,35 @@ This project automates the deployment of a Java application to AWS EC2 using Pyt
 ## Setup Instructions
 
 ### 1. Clone Repository
+
 ```bash
 git clone https://github.com/Me-Koder/tech_eazy_devops_Me-Koder.git
 cd tech_eazy_devops_Me-Koder
+```
 
 ### 2. Install Dependencies
+
 ```bash
 pip install -r requirements.txt
+```
 
 ### 3. Set Environment Variables
+
 ```bash
 export AWS_ACCESS_KEY_ID="your-access-key"
 export AWS_SECRET_ACCESS_KEY="your-secret-key"
 export AWS_DEFAULT_REGION="ap-south-1"
+```
 
 ### 4. Run Deployment
-### For Development:
+
+#### For Development:
 ```bash
 python deploy.py --stage dev
-### For Production:
+```
+
+#### For Production:
 ```bash
 python deploy.py --stage prod
+```
+
