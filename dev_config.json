@@ -2,5 +2,6 @@
     "instance_type": "t2.micro",
     "ami_id": "ami-0f5ee92e2d63afc18",
     "github_repo": "https://github.com/techeazy-consulting/techeazy-devops",
-    "stop_after_minutes": 5
+    "stop_after_minutes": 20,
+    "key_name": "my-aws-key"
 }

@@ -32,13 +32,60 @@ class EC2Deployer:
             # Use defaults if config not available
             return {
                 "instance_type": "t2.micro",
-                "ami_id": "ami-0c02fb55956c7d316",
+                "ami_id": "ami-0f5ee92e2d63afc18",
                 "github_repo": "https://github.com/techeazy-consulting/techeazy-devops",
                 "stop_after_minutes": 60
             }
     
+    def create_security_group(self):
+        """Create security group with port 80 access"""
+        sg_name = f"techeazy-sg-{self.stage}"
+        
+        try:
+            # Check if security group already exists
+            response = self.ec2_client.describe_security_groups(
+                Filters=[{'Name': 'group-name', 'Values': [sg_name]}]
+            )
+            
+            if response['SecurityGroups']:
+                sg_id = response['SecurityGroups'][0]['GroupId']
+                print(f"Using existing security group: {sg_id}")
+                return sg_id
+            
+            # Create new security group
+            response = self.ec2_client.create_security_group(
+                GroupName=sg_name,
+                Description=f'Security group for port 80 access'
+            )
+            
+            sg_id = response['GroupId']
+            
+            # Add port 80 rule
+            self.ec2_client.authorize_security_group_ingress(
+                GroupId=sg_id,
+                IpPermissions=[
+                    {
+                        'IpProtocol': 'tcp',
+                        'FromPort': 80,
+                        'ToPort': 80,
+                        'IpRanges': [{'CidrIp': '0.0.0.0/0'}]
+                    }
+                ]
+            )
+            
+            print(f"Created security group: {sg_id}")
+            return sg_id
+            
+        except ClientError as e:
+            print(f"Using default security group due to error: {e}")
+            return None
+    
     def launch_instance(self):
         """Spins up an EC2 instance of a specific type"""
+        
+        # Create or get security group
+        sg_id = self.create_security_group()
+        
         user_data = f"""#!/bin/bash
 # Install Java 21
 yum update -y
@@ -47,25 +94,41 @@ yum install -y java-21-amazon-corretto-devel
 # Clone repo & deploy app from GitHub
 cd /home/ec2-user
 git clone {self.config['github_repo']}.git app
-cd app
 
-# Deploy app (assuming it's a Spring Boot app)
+# Start simple test server to verify port 80 works
+echo "<h1>TechEazy Test Server - Port 80 Working!</h1>" > /home/ec2-user/index.html
+cd /home/ec2-user
+nohup python3 -m http.server 80 > server.log 2>&1 &
+
+# Try to run the actual app if it exists
+cd /home/ec2-user/app
 if [ -f "pom.xml" ]; then
     yum install -y maven
     mvn clean package -DskipTests
-    nohup java -jar target/*.jar --server.port=80 > /dev/null 2>&1 &
+    nohup java -jar target/*.jar --server.port=8080 > app.log 2>&1 &
 fi
 """
         
         try:
-            response = self.ec2_client.run_instances(
-                ImageId=self.config['ami_id'],
-                MinCount=1,
-                MaxCount=1,
-                InstanceType=self.config['instance_type'],
-                UserData=user_data,
-                SecurityGroups=['default']
-            )
+            # Use security group if created, otherwise use default
+            if sg_id:
+                response = self.ec2_client.run_instances(
+                    ImageId=self.config['ami_id'],
+                    MinCount=1,
+                    MaxCount=1,
+                    InstanceType=self.config['instance_type'],
+                    UserData=user_data,
+                    SecurityGroupIds=[sg_id]
+                )
+            else:
+                response = self.ec2_client.run_instances(
+                    ImageId=self.config['ami_id'],
+                    MinCount=1,
+                    MaxCount=1,
+                    InstanceType=self.config['instance_type'],
+                    UserData=user_data,
+                    SecurityGroups=['default']
+                )
             
             self.instance_id = response['Instances'][0]['InstanceId']
             print(f"Instance launched: {self.instance_id}")
