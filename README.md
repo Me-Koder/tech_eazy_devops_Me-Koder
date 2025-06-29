@@ -35,11 +35,25 @@ pip install -r requirements.txt
 
 ### 3. Set Environment Variables
 
+#### Windows (Command Prompt)
+```cmd
+set AWS_ACCESS_KEY_ID=your-access-key
+set AWS_SECRET_ACCESS_KEY=your-secret-key
+set AWS_DEFAULT_REGION=ap-south-1
+```
+
+#### Windows (PowerShell)
+```powershell
+$env:AWS_ACCESS_KEY_ID="your-access-key"
+$env:AWS_SECRET_ACCESS_KEY="your-secret-key"
+$env:AWS_DEFAULT_REGION="ap-south-1"
+```
+
+#### Linux/macOS (Bash/Zsh)
 ```bash
 export AWS_ACCESS_KEY_ID="your-access-key"
 export AWS_SECRET_ACCESS_KEY="your-secret-key"
 export AWS_DEFAULT_REGION="ap-south-1"
-```
 
 ### 4. Run Deployment
 
