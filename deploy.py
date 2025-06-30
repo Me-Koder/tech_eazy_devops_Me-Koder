@@ -136,10 +136,11 @@ class EC2Deployer:
         
 # In deploy.py, inside the launch_instance method
 
+# NEW user_data block
         user_data = f"""#!/bin/bash
 # Update package list and install all dependencies
 apt-get update -y
-apt-get install -y openjdk-21-jdk maven git python3-pip
+apt-get install -y openjdk-21-jdk maven git
 
 # Define home directories
 UBUNTU_HOME="/home/ubuntu"
@@ -152,34 +153,25 @@ git clone {self.config['github_repo']}.git app
 # --- FIX APPLICATION SOURCE CODE ON THE FLY ---
 CONTROLLER_FILE="$APP_DIR/src/main/java/com/techeazy/devops/controller/TestController.java"
 if [ -f "$CONTROLLER_FILE" ]; then
-    # CORRECTED: The curly braces for the sed command are now doubled {{ and }}
-    # so that the Python f-string interprets them as literal characters.
     sed -i '/@GetMapping/{{N; /SampleRequest/s/@GetMapping/@GetMapping("\\/sample")/}}' "$CONTROLLER_FILE"
     echo "Applied on-the-fly patch to $CONTROLLER_FILE" >> $UBUNTU_HOME/build.log
 fi
 # --- END OF FIX ---
-# Start simple test server on port 80
-echo "<h1>TechEazy Test Server - Port 80 Working!</h1>" > $UBUNTU_HOME/index.html
-cd $UBUNTU_HOME
-nohup python3 -m http.server 80 > server.log 2>&1 &
 
-# Build and run the actual Java application
+# Build and run the actual Java application on port 80
 cd $APP_DIR
 if [ -f "pom.xml" ]; then
-    # --- FIX MAVEN BUILD ---
-    # Set the HOME environment variable for the root user, which is required by the mvnw script
-    # to know where to create the .m2 directory for dependencies.
-    export HOME=/root
+    export HOME=/root # Required for mvnw as root
     echo "Building with Maven (HOME=$HOME)..." >> $UBUNTU_HOME/build.log
-    # --- END OF FIX ---
     
     chmod +x ./mvnw
     ./mvnw clean package -DskipTests >> $UBUNTU_HOME/build.log 2>&1
     
     # Check if JAR was built successfully
     if ls target/*.jar 1> /dev/null 2>&1; then
-        echo "JAR found, starting application on port 8080..." >> $UBUNTU_HOME/build.log
-        nohup java -jar target/*.jar --server.port=8080 > $UBUNTU_HOME/app.log 2>&1 &
+        # The app will run on port 80 because of application.properties
+        echo "JAR found, starting application..." >> $UBUNTU_HOME/build.log
+        nohup java -jar target/*.jar > $UBUNTU_HOME/app.log 2>&1 &
     else
         echo "No JAR file found in target directory after build. See build.log for details." >> $UBUNTU_HOME/build.log
     fi
@@ -232,24 +224,24 @@ fi
         return public_ip
     
     def test_reachability(self, public_ip):
-        """Tests if app is reachable via port 8080 (actual Java app)"""
-        print("Testing if Java app is reachable via port 8080...")
+        """Tests if the Java application is reachable via port 80."""
+        print("Testing if Java app is reachable via port 80...")
         
-        # Wait for app to start (Java app takes longer to compile and start)
-        time.sleep(300)  # 5 minutes for Maven build and Java app startup
+        # Wait for the full Maven build and Java app startup time.
+        print("Waiting 300 seconds (5 minutes) for the full deployment...")
+        time.sleep(300)
         
         max_attempts = 3
         for attempt in range(max_attempts):
             try:
-                # --- MODIFIED LINE ---
-                # Test the specific "/sample" endpoint that we know exists after the patch.
-                test_url = f"http://{public_ip}:8080/sample"
+                # The root endpoint from TestController.java should return "Successfully Deployed"
+                test_url = f"http://{public_ip}:80/"
                 print(f"Attempting to connect to {test_url}...")
                 response = requests.get(test_url, timeout=10)
-                # --- END OF MODIFICATION ---
                 
-                if response.status_code == 200:
-                    print(f"SUCCESS: Java app is reachable via port 8080. Response: {response.text}")
+                # Check for the Java application's specific response
+                if response.status_code == 200 and "Successfully Deployed" in response.text:
+                    print(f"SUCCESS: Java app is reachable on port 80. Response: {response.text}")
                     return True
                 else:
                     print(f"Attempt {attempt + 1} failed with status code: {response.status_code}")
@@ -259,9 +251,9 @@ fi
             
             if attempt < max_attempts - 1:
                 print("Retrying in 60 seconds...")
-                time.sleep(60)  # Wait longer between attempts for Java app
+                time.sleep(60)
         
-        print("Java app is not reachable via port 8080")
+        print("ERROR: Java application is not reachable on port 80.")
         return False
         
     def stop_instance(self):
