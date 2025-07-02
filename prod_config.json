@@ -2,5 +2,6 @@
     "instance_type": "t2.small", 
     "ami_id": "ami-0f5ee92e2d63afc18",
     "github_repo": "https://github.com/techeazy-consulting/techeazy-devops",
-    "stop_after_minutes": 60
+    "stop_after_minutes": 60,
+    "bucket_name": "techeazy-logs-prod-bucket-2025"
 }
